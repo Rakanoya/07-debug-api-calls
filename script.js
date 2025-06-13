@@ -5,21 +5,34 @@ const movieResults = document.getElementById('movie-results');
 const watchlist = new Set(); // Use a Set to avoid duplicates
 const watchlistContainer = document.getElementById('watchlist');
 
-// Function to fetch movies from the OMDb API
-async function fetchMovies(query) {
+// Function to fetch movies from the OMDb API using .then() and .catch()
+function fetchMovies(query) {
   const apiKey = 'your-api-key'; // Replace with your OMDb API key
   const url = `https://www.omdbapi.com/?s=${query}&apikey=${apiKey}`;
 
   // Fetch data from the API
-  const response = await fetch(url);
-  const data = await response.json();
-
-  // Check if the response contains movies
-  if (data.Response === 'True') {
-    displayMovies(data.Search);
-  } else {
-    movieResults.innerHTML = '<p class="no-results">No results found. Please try a different search.</p>';
-  }
+  fetch(url)
+    .then(function(response) {
+      // Check if the response status is OK (200-299)
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(function(data) {
+      // Check if the response contains movies
+      if (data.Response === 'True') {
+        displayMovies(data.Search);
+      } else {
+        movieResults.innerHTML = '<p class="no-results">No results found. Please try a different search.</p>';
+      }
+    })
+    .catch(function(error) {
+      // Log error details for debugging
+      console.error('Error fetching movies:', error);
+      // Display a user-friendly error message
+      movieResults.innerHTML = '<p class="error">Sorry, something went wrong while fetching movies. Please try again later.</p>';
+    });
 }
 
 // Function to save the watchlist to local storage
@@ -49,26 +62,42 @@ async function updateWatchlistDisplay() {
   if (watchlist.size === 0) {
     watchlistContainer.innerHTML = '<p>Your watchlist is empty. Search for movies to add!</p>';
   } else {
-    watchlist.forEach(async (movieID) => {
+    // Use an array to collect movie cards before appending
+    const movieCards = [];
+    for (const movieID of watchlist) {
       const apiKey = 'your-api-key'; // Replace with your OMDb API key
       const url = `https://www.omdbapi.com/?i=${movieID}&apikey=${apiKey}`;
-      const response = await fetch(url);
-      const movie = await response.json();
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        const movie = await response.json();
 
-      const watchlistCard = document.createElement('div');
-      watchlistCard.classList.add('movie-card');
+        const watchlistCard = document.createElement('div');
+        watchlistCard.classList.add('movie-card');
 
-      watchlistCard.innerHTML = `
-        <img src="${movie.Poster}" alt="${movie.Title}" class="movie-poster">
-        <div class="movie-info">
-          <h3 class="movie-title">${movie.Title}</h3>
-          <p class="movie-year">${movie.Year}</p>
-          <button class="btn btn-remove" onclick='removeFromWatchlist("${movie.imdbID}")'>Remove</button>
-        </div>
-      `;
-
-      watchlistContainer.appendChild(watchlistCard);
-    });
+        watchlistCard.innerHTML = `
+          <img src="${movie.Poster}" alt="${movie.Title}" class="movie-poster">
+          <div class="movie-info">
+            <h3 class="movie-title">${movie.Title}</h3>
+            <p class="movie-year">${movie.Year}</p>
+            <button class="btn btn-remove" onclick='removeFromWatchlist("${movie.imdbID}")'>Remove</button>
+          </div>
+        `;
+        movieCards.push(watchlistCard);
+      } catch (error) {
+        // Log error details for debugging
+        console.error('Error fetching movie for watchlist:', error);
+        // Show a user-friendly error message for this movie
+        const errorCard = document.createElement('div');
+        errorCard.classList.add('movie-card');
+        errorCard.innerHTML = `<p class="error">Could not load this movie. Please try again later.</p>`;
+        movieCards.push(errorCard);
+      }
+    }
+    // Append all movie cards to the container
+    movieCards.forEach(card => watchlistContainer.appendChild(card));
   }
 }
 
